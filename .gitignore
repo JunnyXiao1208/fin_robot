@@ -1,0 +1,30 @@
+# ── 环境变量（含 API Key / Token / 密码） ──
+.env
+
+# ── 虚拟环境 ──
+venv/
+.venv/
+
+# ── Python 缓存 ──
+__pycache__/
+*.pyc
+*.pyo
+
+# ── 数据库 ──
+*.db
+*.sqlite
+*.sqlite3
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ── 历史废弃文件 ──
+latest_news.json
+history.txt
+news_history.txt
+test_out.txt
