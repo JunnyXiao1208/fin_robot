@@ -10,11 +10,13 @@ RSS 源 ──→  collectors/rss/  ──→  规范化 RawItem
                                     ┌────┘
                                     ▼
                          services/ingestion_service.py
-                         ├── Phase 1: 批量原始入库（串行）
-                         ├── Phase 2: 并发 AI 提取（Semaphore=5）
-                         │   ├── financial_filter   金融过滤
-                         │   └── market_state_analyzer  信号提取
-                         └── Phase 3: 批量信号入库（串行）
+                         ├── Phase 1: 批量原始入库 + 皮尔逊去重
+                         │   (Bigram + Pearson, 阈值 0.85)
+                         ├── Phase 2: 并发 AI 提取（Semaphore=5, 45s timeout）
+                         │   ├── financial_filter   金融过滤（缩写 JSON）
+                         │   └── market_state_analyzer  信号提取（缩写 JSON）
+                         │       └── Few-Shot 资产标准化 → 沪深300/纳斯达克100
+                         └── Phase 3: 批量信号入库
                                     │
                                     ▼
                          core/database/   SQLite 持久化
@@ -30,6 +32,8 @@ RSS 源 ──→  collectors/rss/  ──→  规范化 RawItem
 | RSS 采集 | 7 个金融/科技源，关键词过滤，自动重试 |
 | AI 金融过滤 | 判断内容是否金融相关，非金融自动降级 |
 | 信号提取 | 情绪/重要性/置信度/影响标的/板块/风险等级 |
+| 文本去重 | Bigram + 皮尔逊相关系数去重，纯 Python 实现，无第三方依赖 |
+| 资产标准化 | Few-Shot Prompt 引导模型输出沪深300/纳斯达克100等标准标的名称 |
 | 并发管线 | asyncio.Semaphore(5) 并发控制，45s 超时熔断 |
 | 三级 Fallback | xiaomi → deepseek → openrouter 自动降级 |
 | 源分类 | macro / market / industry / sentiment / policy |
@@ -141,6 +145,7 @@ fin_robot/
 │   ├── database/            # 建表、迁移、Repository
 │   ├── market/              # 预留：状态引擎 / 主题追踪 / 量化因子
 │   └── utils/               # 工具函数
+│       └── similarity.py    # 皮尔逊相关系数 + Bigram 文本相似度
 ├── collectors/              # 采集器
 │   ├── rss/                 # RSS 抓取、规范化、源配置
 │   └── x/                   # X 推文采集（预留迁移）
@@ -149,7 +154,8 @@ fin_robot/
 │   └── ingestion_service.py # 三阶段并发管线（Phase 1/2/3）
 ├── scripts/                 # 可运行入口
 │   ├── run_rss.py           # RSS 全流程入口
-│   └── test_english_slim.py # 英文文本对照测试脚本
+│   ├── test_english_slim.py # 英文文本对照测试脚本
+│   └── test_few_shot.py     # Few-Shot 资产标准化验证脚本
 └── data/                    # 数据存储
 ```
 
@@ -168,7 +174,7 @@ fin_robot/
 ## 数据流
 
 ```
-1. RSS 抓取 →  2. 规范化（RawItem）→  3. 批量原始入库（Phase 1）
+1. RSS 抓取 →  2. 规范化（RawItem）→  3. 皮尔逊去重 + 批量原始入库（Phase 1）
                                                │
                                                ▼
                                     4. 并发 AI 提取（Phase 2）
@@ -233,6 +239,24 @@ python scripts/test_english_slim.py
 ```
 
 该脚本使用美联储利率决议相关英文文本，独立调用当前配置的模型，验证 JSON 完整性和语言解绑效果。
+
+## Few-Shot 资产标准化测试
+
+验证模型是否能通过 Few-Shot 示例将模糊的"核心资产"表述自动映射为标准标的名称：
+
+```bash
+python scripts/test_few_shot.py
+```
+
+该脚本输入"A股核心资产全线爆发"的文本，检测 `assets` 字段是否输出 `沪深300`。经实测，DeepSeek 模型可完美命中标准化名称。
+
+## 文本去重机制
+
+Phase 1 入库前对所有新抓取条目进行两两皮尔逊去重：
+
+- **算法**：Bigram 词频向量 + 皮尔逊相关系数，纯 Python 实现，无第三方依赖
+- **阈值**：0.85 — 仅拦截高度雷同的重复推送，不会误杀同一事件的不同报道
+- **位置**：`core/utils/similarity.py`
 
 ## 模型 Fallback 链路
 
