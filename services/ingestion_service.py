@@ -5,6 +5,7 @@ from typing import Any
 from core.database.db import init_database
 from core.database.repositories import raw_item_repo, signal_repo, market_state_repo as sync_repo
 from core.ai.pipeline import extract_market_signal
+from core.utils.similarity import calculate_text_pearson_similarity
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,22 @@ async def ingest_rss_items(limit_per_feed: int | None = None, keyword_filter: bo
     import sqlite3
 
     conn = sqlite3.connect(DB_PATH)
+    PEARSON_THRESHOLD = 0.85
     saved_items = []
     try:
         for raw_item in raw_items:
+            content = raw_item.get("content", "")
+            is_duplicate = False
+            for existing_item in saved_items:
+                sim = calculate_text_pearson_similarity(content, existing_item.get("content", ""))
+                if sim >= PEARSON_THRESHOLD:
+                    logger.warning(f"皮尔逊去重: 跳过高度相似条目 [{raw_item.get('title', '')[:40]}] (相似度={sim:.2f})")
+                    stats["skipped"] += 1
+                    is_duplicate = True
+                    break
+            if is_duplicate:
+                continue
+
             saved = raw_item_repo.save(conn, raw_item)
             if not saved:
                 stats["skipped"] += 1
