@@ -40,10 +40,13 @@ X_TRACKED_USERS: list[dict[str, Any]] = json.loads(
 
 PROXY = os.getenv("HTTPS_PROXY", os.getenv("HTTP_PROXY", "")).strip()
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-BEARER = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN", "").strip()
+if not X_BEARER_TOKEN:
+    logger.error("环境变量 X_BEARER_TOKEN 未配置，X/Twitter 采集器将无法正常工作")
+BEARER = f"Bearer {X_BEARER_TOKEN}"
 
-USER_BY_SCREEN_NAME_QID = "IGgvgiOx4QZndDHuD3x9TQ"
-USER_TWEETS_QID = "lrMzG9qPQHpqJdP3AbM-bQ"
+USER_BY_SCREEN_NAME_QID = os.getenv("X_USER_BY_SCREEN_NAME_QID", "IGgvgiOx4QZndDHuD3x9TQ")
+USER_TWEETS_QID = os.getenv("X_USER_TWEETS_QID", "lrMzG9qPQHpqJdP3AbM-bQ")
 
 USER_FEATURES = {
     "hidden_profile_subscriptions_enabled": True,
