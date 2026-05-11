@@ -42,6 +42,33 @@ def extract_json_block(content: str) -> dict[str, Any]:
         return json.loads(match.group(0))
 
 
+FIELD_ABBR_TO_FULL = {
+    "cat": "category",
+    "emo": "sentiment",
+    "imp": "importance",
+    "conf": "confidence",
+    "hor": "horizon",
+    "mkts": "affected_markets",
+    "assets": "affected_assets",
+    "sects": "affected_sectors",
+    "tags": "tags",
+    "themes": "theme_tags",
+    "sum": "summary",
+    "log": "logic",
+    "risks": "risk_points",
+    "r_lvl": "risk_level",
+    "bias": "action_bias",
+}
+
+
+def expand_signal_fields(signal: dict[str, Any]) -> dict[str, Any]:
+    expanded = {}
+    for k, v in signal.items():
+        full_key = FIELD_ABBR_TO_FULL.get(k, k)
+        expanded[full_key] = v
+    return expanded
+
+
 def apply_schema_defaults(signal: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     merged = {**schema, **signal}
     if merged.get("category") == "non_financial":

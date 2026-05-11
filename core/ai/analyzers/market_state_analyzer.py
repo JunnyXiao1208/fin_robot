@@ -4,7 +4,7 @@ from typing import Any
 
 from core.ai.ai_client import chat_completion
 from core.ai.prompts.financial_filter_prompt import MARKET_SIGNAL_EXTRACTION_PROMPT
-from core.ai.prompts.schemas import extract_json_block, MARKET_SIGNAL_SCHEMA, apply_schema_defaults
+from core.ai.prompts.schemas import extract_json_block, expand_signal_fields, MARKET_SIGNAL_SCHEMA, apply_schema_defaults
 from core.models.market_signal import FALLBACK_SIGNAL
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ async def analyze(
             system_msg="你是金融文本结构化提取引擎，只能输出合法 JSON。",
         )
         result = extract_json_block(content)
+        result = expand_signal_fields(result)
         result["source_type"] = source_type
         result["author"] = author_text
         return apply_schema_defaults(result, MARKET_SIGNAL_SCHEMA)
